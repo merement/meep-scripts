@@ -1,0 +1,49 @@
+# Resource file for the generator
+#
+# 
+Header:
+    intro: Control file for Meep calculations of SSPP waveguides
+    gendata: 
+        header: "Generated: "
+        base: "Based on "
+
+Code:
+    geometry: (set! geometry-lattice (make lattice (size %s %s no-size) ) ) # totlen totwidth no-size
+    geometry_head: (set! geometry (list
+    geometry_tail: ))
+
+    block_head: (make block
+    block_position: (center %s %s) (size %s %s infinity) 
+    block_metal: (material (make medium (epsilon %s) (D-conductivity %s) ))
+    # block_metal: (material (make dielectric (epsilon 2) ))
+    block_dielectric: (material (make dielectric (epsilon %s)  ))
+    block_tail: )
+
+    sources_head: (set! sources (list
+    source_head: (make source 
+    source_types:
+        pulse: (src (make gaussian-src (frequency %s) (fwidth %s) )) # central, width
+        continuous: (src (make continuous-src (frequency %s) (fwidth %s) ))
+    source_component: (component %s) # (Ex, ..., Hx ...)
+    source_position: (center %s %s) (size %s %s)
+    source_tail: )
+    sources_tail: ))
+
+    pml: (set! pml-layers (list (make pml (thickness 1.0)) ))
+
+    resolution: (set! resolution %s)
+
+    # the first argument in decay - snapshot code
+    time_decay: (run-sources+ 5 (at-beginning output-epsilon) %s (stop-when-fields-decayed %s Ez (vector3 %s %s ) 1e-3 ))
+    time_fixed: (run-until %s (at-beginning output-epsilon) %s) # duration, snap code
+
+    snapshot: (to-appended "%s" (at-every %s output-%sfield-%s)) # fname, step, field, component
+
+    flux_head: "(define trans%s "  # hence trans is the standard prefix (space is added for prettyness)
+    flux_prop: (add-flux %s %s %s # frequencies: center width number_of_points
+    flux_position: (make flux-region (center %s %s) (size %s %s) )
+    flux_tail: ))
+
+    fluxes_head: (display-fluxes
+    fluxes_tail: )
+ 

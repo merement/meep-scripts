@@ -1,0 +1,208 @@
+# (Meta) Configuration file for generating SSPP control files
+#
+# Status: UNSTABLE
+# Ultimately this file should contain the high level
+# desciption of the structure in the vector form
+#
+# ver 2-10-2015
+# YAML format is adopted 
+# The elements in the current version must be in strict order:
+# from left to right and from bottom to top
+#
+# ver 2-27-2015
+# Many TODO's are implemented. Additional fields are added
+
+comment: Any single-line comment passed to the file 
+# The same line can be added to any element, see, for instance, first 
+# line below
+
+Geometry:
+    overshot: 1 # added empty space beyond the metallic plates
+
+    elements: # We, probably, can take off this extra level
+        - line:
+            comment: The base line
+            id: 1 # (optional, for coordinate references)
+            start:
+                x: -8
+                y: 3.0
+                skip: 0 # skip this fraction of the period (it's used internally anyway)
+            end: &head_end
+                # continuous: True
+                periods: 3 # the end is determined by the number of 
+                             # periods
+                # Alternatively coordinates can be specified, absolute or relative
+                # When the number of periods is specified additionally the direction
+                # can be provided (default: (1,0) for lines, (0,1) for connectors)
+                # direction: (TODO)
+                #   x: 1
+                #   y: 0
+                # and one can add the vector whose magnitude is added to the 
+                # length of the line along the direction (default: (0,0))
+                # Or just treat x only as the relative displacement?
+                x: 0.4
+                y: 0
+                # The absolute coordinates are specified simply by
+                # x: 12.0
+                # y: 3.5
+                # the coordinates relative to the beginning should be as usual
+                # ref: line_id (that same id)
+                # point: start
+                # x: ..
+                # y: ...
+
+            property: &lineprop
+                padding: 1 # width of metal at the narrowest place
+                width: 1 # the distance between the metallic plates
+
+                grooves: &idgroove
+                    # the position of the grooves inside the period
+                    # start: 0.5 # fraction of the period # TODO
+                    shape: rectangular # (rectangular)
+                    width: 0.3 # at the base
+                    depth: 1.5 
+                    period: 3 # period starts from the flat part
+
+                materials: &idmat
+                    in: 
+                        medium: dielectric
+                        epsilon: 1.5
+                    up: &idmetal
+                        medium: metal
+                        epsilon: 1.5
+                        conductivity: 50
+                    down: *idmetal
+
+        - line:
+            id: 2
+            start:
+                ref: 1
+                point: start
+                # this defines relative coordinates
+                x: 0
+                y: -4
+                #attached_to: 1 #
+                #point: end 
+            end: *head_end
+            property: *lineprop
+
+        - connector:
+            id: con1
+            start:
+                attached_to: 2
+                point: end
+            end:
+                attached_to: 1
+                point: end
+            property: *lineprop
+
+        - line:
+            id: line3
+            start:
+                attached_to: con1
+                point: end
+            end: &middle_tail
+                periods: 3
+                x: 0.2
+                y: 0
+            property: *lineprop
+
+        - line:
+            id: line4
+            start:
+                attached_to: con1
+                point: start
+            end: *middle_tail
+            property: *lineprop
+
+        - connector:
+            id: con2
+            start:
+                attached_to: line4
+                point: end
+            end:
+                attached_to: line3
+                point: end
+            property: *lineprop
+
+        - line:
+            id: line5
+            start:
+                attached_to: con2
+                point: start
+            end:
+                periods: 3
+            property: *lineprop
+
+        - line:
+            id: line6
+            start:
+                attached_to: con2
+                point: end
+            end:
+                periods: 3
+            property: *lineprop
+
+Sources:
+    - source:
+        position:
+            ref: 1 # inside the line with id: 1
+            point: start # (start, end)
+            # for relative positioning x and y denote the shifts
+            x: 1 # away from pml
+            y: 0
+            width: 1 # fraction of the width of the dielectric part
+
+            # alternatively absolute coordinates can be specified then width is taken literally
+            # x: -4 
+            # y: 0
+            # width: 2
+
+        property:
+            # type: pulse # (pulse, continuous)
+            type: continuous
+            center: 0.1 # frequency
+            width: 0.01 # for pulse and for continuous if non-zero implies tanh
+            component: Hz # TODO
+
+Controls:
+    resolution: 10
+    time:
+        structure_only: False # (True, False)
+        # type: decay # (fixed, decay)
+        type: fixed
+        position: # for decay, where it's monitored
+            ref: 1
+            point: end
+            x: -1
+            y: 0
+        duration: 150 # in periods of the source
+    snapshot:
+        field: e # (e, h)
+        component: z # (x, y, z)
+        resolution: 0.6 # time step in Meep units (default: 0.6)
+        # the number of snapshots = duration/resolution
+
+Collectors:
+    - flux:
+        position:
+            ref: line5
+            point: end
+            x: -1
+            y: 0
+            width: 1.5
+        property: &fluxprop
+            center: 0.0005 # frequency
+            width: 0.001 
+            resolution: 100 # number of points in the frequency domain
+    - flux:
+        position:
+            ref: line6
+            point: end
+            x: -1
+            y: 0
+            width: 1.5
+        property: *fluxprop
+
+Output:
+    ctl_file: singlewg.ctl

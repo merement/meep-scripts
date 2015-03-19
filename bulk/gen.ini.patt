@@ -1,0 +1,192 @@
+# (Meta) Configuration file for generating SSPP control files
+#
+# Status: UNSTABLE
+# Ultimately this file should contain the high level
+# desciption of the structure in the vector form
+#
+# ver 2-10-2015
+# YAML format is adopted 
+# The elements in the current version must be in strict order:
+# from left to right and from bottom to top
+#
+# ver 2-27-2015
+#
+# pattern for reproduction
+# variables employed are
+#   terminator_length
+#   vertical_spacing
+#   middle_length
+#   center_frequency # frequencies are for both sources and observers
+#   width_frequency
+#   out_name
+#   count # to distinguish different versions
+#
+# The file should be processed with
+#
+# sed -e "s/\${var1}/val1/" -e "s/\${var2}/val2/" ... this.file > some_other.file
+
+
+Geometry:
+    overshot: 1 # added empty space beyond the metallic plates
+
+    elements: 
+        - line:
+            id: line1 # (optional, for coordinate references)
+            start:
+                x: 0
+                y: 0
+                skip: 0.4 # skip this fraction of the period (it's used internally anyway)
+            end: &head_end
+                periods: ${terminator_length}
+                x: 1.5
+                y: 0.0
+            property: &lineprop_terms
+                padding: 2 # width of metal at the narrowest place
+                width: 1 # the distance between the metallic plates
+                grooves: &idgroove
+                    shape: rectangular # (rectangular)
+                    width: 0.24 # at the base
+                    depth: 1.4
+                    period: 1.8 # period starts from the flat part
+                materials: &idmat
+                    in: 
+                        medium: dielectric
+                        epsilon: 1.3
+                    up: &idmet
+                        medium: metal
+                        epsilon: 1.01
+                        conductivity: 250
+                    down: *idmet
+
+        - line:
+            id: line2
+            start:
+                ref: line1
+                point: start
+                x: 0
+                y: ${vertical_spacing}
+                skip: 0.4
+            end: *head_end
+            property: *lineprop_terms
+
+        - connector:
+            id: con1
+            start:
+                attached_to: line1
+                point: end
+            end:
+                attached_to: line2
+                point: end
+            property: *lineprop_terms
+
+        - line:
+            id: line2_1
+            start:
+                attached_to: con1
+                point: start
+                skip: 0.6
+            end: &middle_length
+                periods: ${middle_length}
+                x: 1.3
+                y: 0
+            property: *lineprop_terms
+
+        - line:
+            id: line2_2
+            start:
+                attached_to: con1
+                point: end
+                skip: 0.6
+            end: *middle_length
+            property: *lineprop_terms
+
+        - connector:
+            id: con2
+            start:
+                attached_to: line2_1
+                point: end
+            end:
+                attached_to: line2_2
+                point: end
+            property: *lineprop_terms
+        - line:
+            id: line3_1
+            start:
+                attached_to: con2
+                point: start
+                skip: 0.6
+            end: *head_end
+            property: *lineprop_terms
+
+        - line:
+            id: line3_2
+            start:
+                attached_to: con2
+                point: end
+                skip: 0.6
+            end: *head_end
+            property: *lineprop_terms
+
+Sources:
+    - source:
+        position:
+            ref: line1 # inside the line with id: 1
+            point: start # (start, end)
+            # for relative positioning x and y denote the shifts
+            x: 1.3 # away from pml
+            y: 0.4
+            width: 0.2 # fraction of the width of the dielectric part
+        property:
+            type: pulse # (pulse, continuous)
+            #type: continuous
+            center: ${center_frequency} # frequency
+            width: ${width_frequency} #  if continuous and non-zero implies tanh
+            component: Hz
+Controls:
+    resolution: 30
+    time:
+        structure_only: False # (True, False)
+        type: decay # (fixed, decay)
+        #type: fixed
+        position:  # for decay, where it's monitored
+            ref: line1
+            point: end
+            x: -1
+            y: 0
+        duration: 250 # in periods of the source
+#    snapshot:
+#        field: e # 
+#        component: y # 
+#        resolution: 0.6 # time step in Meep units (default: 0.6)
+        # the number of snapshots = duration/resolution
+Collectors:
+    - flux:
+        position:
+            ref: line3_1
+            point: end
+            x: -1.3
+            y: 0
+            width: 1.5
+        property: &fluxprop
+            center: ${center_frequency} # frequency
+            width: ${width_frequency}
+            resolution: 100 # number of points in the frequency domain
+    - flux:
+        position:
+            ref: line3_2
+            point: end
+            x: -1.3
+            y: 0
+            width: 1.5
+        property: *fluxprop
+    - flux:
+        position:
+            ref: line2
+            point: start
+            x: 1.3
+            y: 0
+            width: 1.5
+        property: *fluxprop
+
+Output:
+    ctl_file: ${out_name}.${count}.ctl

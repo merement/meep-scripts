@@ -1,0 +1,33 @@
+#!/bin/bash
+
+#PBS -q batch
+#  #PBS -l nodes=1:ppn=4
+#PBS -l walltime=424:00:00
+# Output file. In this file the output that's supposed to be on the screen will$
+#PBS -o MEEP_out
+# This combines error and output messages in the same file
+#PBS -j oe
+#PBS -m bea
+
+if [ -n "${PBS_O_WORKDIR:+1}" ]; then cd $PBS_O_WORKDIR; fi
+
+ctlfile="${control}"
+
+python gentri3.py -i ${config} 
+if [ $? -ne 0 ]; then
+    echo "Something failed during translation"
+    exit 1
+fi
+
+/usr/local/bin/meep-mpi $ctlfile.ctl > $ctlfile.log
+
+# Here we get the number of time slices
+out=`h5ls ${ctlfile}-ey.h5 | sed -e "s/\// /" | awk '{print $5;}'`
+let out=$out-1
+/usr/local/bin/h5topng -t 0:$out -R -Zc dkbluered -a yarg -A $ctlfile-eps-000000.00.h5 $ctlfile-ey.h5
+ffmpeg -i $ctlfile-ey.t%03d.png -vb 20M $ctlfile.mpeg
+rm $ctlfile-ey.t*.png
+/usr/local/bin/h5topng -S3 $ctlfile-eps-000000.00.h5
+grep flux1: $ctlfile.log > $ctlfile.dat
+
+#plotdat.py $ctlfile.dat
