@@ -28,6 +28,8 @@ import sys
 import yaml
 from datetime import datetime
 
+import os
+
 # *** Some general constants ***
 # When a float is considered zero
 Tolerance = 1e-6
@@ -75,7 +77,12 @@ class genResource(clYAML) :
     
     def __init__(self, rcFileName = None) :
         # the constructor accepts the name of the resource file
-        super(genResource, self).__init__("gen.rc" if rcFileName == None else rcFileName)
+        if rcFileName == None :
+            # look for the .rc file in the directory where the py file resides
+            script_path, _ = os.path.split(os.path.realpath(__file__))
+            rcFileName = os.path.join(script_path, 'gen.rc')
+
+        super(genResource, self).__init__(rcFileName)
         
 ## end of class genResource
 
