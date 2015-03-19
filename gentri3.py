@@ -1,3 +1,4 @@
+#!/usr/bin/env python
 # Generator of scripts for Meep out of meta-configuration files
 #
 # by Misha Erementchouk
