@@ -166,7 +166,7 @@ Sources:
             type: continuous
             center: 0.1 # frequency
             width: 0.01 # for pulse and for continuous if non-zero implies tanh
-            component: Hz # TODO
+            component: Hz # (Ex, Hx, ...)
 
 Controls:
     resolution: 10
