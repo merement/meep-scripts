@@ -11,6 +11,9 @@
 #
 # ver 2-27-2015
 # Many TODO's are implemented. Additional fields are added
+#
+# ver 3-20-2015
+# Semantics of Output.ctl_file is changed
 
 comment: Any single-line comment passed to the file 
 # The same line can be added to any element, see, for instance, first 
@@ -205,4 +208,7 @@ Collectors:
         property: *fluxprop
 
 Output:
-    ctl_file: singlewg.ctl
+    ctl_file:
+        default: True # (True, False) # ommitted == False
+        name: singlewg.ctl # If not default use provided, 
+                            # else add ".ctl" to the name of the conf.file
