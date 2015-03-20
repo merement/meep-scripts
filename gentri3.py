@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 # Generator of scripts for Meep out of meta-configuration files
 #
 # by Misha Erementchouk
@@ -22,6 +22,10 @@
 # ver of 2015-03-02
 # Added:
 #       More options for sources and snapshots
+#
+# ver of 2015-03-20
+# Added:
+#       implementation of the default name for the ctl-file
 
 import numpy as np
 import copy # for copying nested dictionaries
@@ -37,8 +41,6 @@ Tolerance = 1e-6
 
 class clYAML(object):
     # class dealing with YAML data
-    isValid = False
-    Data = None
 
     def validate(self) :
         # Here the trivial validation is performed
@@ -51,6 +53,8 @@ class clYAML(object):
 
     def __init__(self, FileName) :
         # TODO: deal with file problems better
+        self.isValid = False
+        self.Data = None
         self.iniFileName = FileName
         try:
             with open(self.iniFileName, "r") as f :
@@ -69,6 +73,7 @@ class clYAML(object):
             return digger
         else :
             return None
+
 ## class clYAML
     
 class genResource(clYAML) :
@@ -452,6 +457,13 @@ class ctlInfo(clYAML) :
     bufErrors = []
     
     def subvalidate (self) :
+        if "default" in dict(self.Data["Output"]["ctl_file"]) \
+            and self.Data["Output"]["ctl_file"]["default"] :
+            self.nameCtlFile = self.iniFileName + ".ctl"
+            print("Default name for the output control file is chosen")
+        else :
+            self.nameCtlFile = self.Data["Output"]["ctl_file"]["name"]
+
         # Rearrange data a bit and check for the consistency        
             
         def addSource(source) :
@@ -582,8 +594,12 @@ class ctlInfo(clYAML) :
         else :
             return None
 
-## class ctlInfo and its Exceptions
+    def getCtlName(self) :
+        return self.nameCtlFile
 
+## end of class ctlInfo and its Exceptions
+
+# class MeepControl and its Exceptions
 class MeepException(Exception) :
     """Exceptions raised while processing translation to Meep controls"""
     def __init__ (self) :
@@ -740,7 +756,9 @@ class MeepControl (object) :
             self.add_string(self.Code["time_decay"] % (self.snapCodeLine, kwargs['duration'], kwargs['pos_x'], kwargs['pos_y']))
         elif property == 'fixed' :
             self.add_string(self.Code["time_fixed"] % (kwargs['duration'], self.snapCodeLine))
-        
+
+# end of class MeepControl and its Exceptions
+
 def main(iniData, rcFileName) :
     """
     Accept classes containing initializing data 
@@ -748,9 +766,9 @@ def main(iniData, rcFileName) :
     iniData - configuration of the structure (instance of ctlInfo).
     
     This function should work standalone as well as within a script.
-    """
-    ctlFile = MeepControl(iniData.getSection("Output")["ctl_file"], rcFileName)
-    
+    """    
+    ctlFile = MeepControl(iniData.getCtlName(), rcFileName)
+
     # 1. Find the limiting points
     s = iniData.getSection("Geometry")["overshot"]
     if iniData.getNumElements() == 0 :
