@@ -8,12 +8,19 @@
 #	1. It processes the configuration file <conf> and outputs the Meep control 
 #		file <conf>.ctl
 #	2. If the translation is successfull the produced control file is passed to
-#		Meep and its outputs are written into 
+#		Meep and its outputs are written into the respective Meep data files and
+#		to <conf>.log (Meep's behavior)
+#	3. Assumes that field's snapshots are in ..-ey.h5 and represents them in png files
+#	4. Makes mpeg file out of these png's
+#	5. ...
+#	6. Processes the dat file and shows fluxes
+#
+# Relies on the default choice of the name of the output control file
 #
 
-if [ -z "$1" ]; then conf = "out2"; else conf = $1; fi
+if [ -z "$1" ]; then conf="gen.ini"; else conf=$1; fi
 
-gentri3.py -i gen.ini
+gentri3.py -i $conf
 if [ $? -ne 0 ]; then
     echo "Something failed during translation"
     exit 1
