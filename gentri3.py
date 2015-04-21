@@ -482,15 +482,12 @@ class InfoException(Exception) :
 
 class ctlInfo(clYAML) :
     # the class dealing with the configuration data
-    #listSources = []
-    #listFluxPoints = []
-    #listTransients = []
     
     # comments on the content
-    #numWarnings = 0
-    #bufWarnings = []
-    #numErrors = 0
-    #bufErrors = []
+    numWarnings = 0
+    bufWarnings = []
+    numErrors = 0
+    bufErrors = []
     
     def __init__(self, iniFileName = None) :
         self.colLines = collectionLines()
