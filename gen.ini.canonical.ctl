@@ -1,7 +1,8 @@
 ; Control file for Meep calculations of SSPP waveguides
-; Generated: 2015/03/20 14:53
+; Generated: 2015/04/21 01:29
 ; Based on gen.ini.canonical
 ; Any single-line comment passed to the file
+(set-param! force-complex-fields? true)
 (set! geometry-lattice (make lattice (size 29.6 12.0 no-size) ) )
 (set! geometry (list
 ; The base line
@@ -145,5 +146,7 @@
 (set! resolution 10)
 (define trans0 (add-flux 0.0005 0.001 100(make flux-region (center 13.8 -2.0) (size 0.0 1.5) )))
 (define trans1 (add-flux 0.0005 0.001 100(make flux-region (center 13.8 2.0) (size 0.0 1.5) )))
-(run-until 150 (at-beginning output-epsilon) (to-appended "ez" (at-every 0.6 output-efield-z)))
+(define transient0 (to-appended "ez" (at-every 0.6 output-efield-z)))
+(define transient1 (to-appended "ezloc" (at-every 0.6 (in-volume (volume (center 13.8 2.0) (size 0) ) output-efield-z) )))
+(run-until 150 (at-beginning output-epsilon)  transient0 transient1)
 (display-fluxes trans0 trans1)

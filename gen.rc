@@ -1,11 +1,15 @@
 # Resource file for the generator
 #
 # 
+version: 0.4 # current version of meta-configuration files
+support_version: 0.4 # back support - major version
+
 Header:
     intro: Control file for Meep calculations of SSPP waveguides
     gendata: 
         header: "Generated: "
         base: "Based on "
+    complexity: "(set-param! force-complex-fields? %s)"
 
 Code:
     geometry: (set! geometry-lattice (make lattice (size %s %s no-size) ) ) # totlen totwidth no-size
@@ -33,11 +37,13 @@ Code:
 
     resolution: (set! resolution %s)
 
-    # the first argument in decay - snapshot code
-    time_decay: (run-sources+ 5 (at-beginning output-epsilon) %s (stop-when-fields-decayed %s Ez (vector3 %s %s ) 1e-3 ))
-    time_fixed: (run-until %s (at-beginning output-epsilon) %s) # duration, snap code
+    time_decay: (run-sources+ (stop-when-fields-decayed %s Ez (vector3 %s %s ) 1e-3 ) (at-beginning output-epsilon)  # dT, position, 
+    time_fixed: (run-until %s (at-beginning output-epsilon) # duration
+    time_tail: ) 
 
     snapshot: (to-appended "%s" (at-every %s output-%sfield-%s)) # fname, step, field, component
+
+    field_local: (to-appended "%s" (at-every %s (in-volume (volume (center %s %s) (size 0) ) output-%sfield-%s) )) #fname, step, pos_x, pos_y, field (E|H), component (x|y|z)
 
     flux_head: "(define trans%s "  # hence trans is the standard prefix (space is added for prettyness)
     flux_prop: (add-flux %s %s %s # frequencies: center width number_of_points
@@ -46,4 +52,8 @@ Code:
 
     fluxes_head: (display-fluxes
     fluxes_tail: )
+
+    function_head: "(define %s " # generic function head %s <- name of the function
+    function_tail: )
+
  

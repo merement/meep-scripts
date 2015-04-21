@@ -26,6 +26,17 @@
 # ver of 2015-03-20
 # Added:
 #       implementation of the default name for the ctl-file
+#
+# ver 4-20-2015 (0.4)
+# 1. Version control is added
+# 2. Control of the complexity of the field
+# 3. Put snapshots to collectors 
+# 4. Separated spectral and temporal (transient) characteristics 
+# 5. Local field snapshots
+# TODO: unify local/global through specification of coordinates
+# TODO: arbitrary function
+# TODO: implement spectral quantities
+# TODO: the design shows a lot of flaws. Implement patches in a consistent manner
 
 import numpy as np
 import copy # for copying nested dictionaries
@@ -38,6 +49,21 @@ import os
 # *** Some general constants ***
 # When a float is considered zero
 Tolerance = 1e-6
+
+# simple check version of metaconfigurations
+# these variables can be overriden
+VERSION = '0.4'
+MAJOR_VERSION = '0.4'
+
+def validateVersion(version) :
+    # until release, x in 0.x.y denotes the major version
+    if version == VERSION :
+        return True
+    print("The version of the meta-configuration data is not current. Possible compatibility issues may be expected.")
+    if version.split('.')[1] == MAJOR_VERSION :
+        return True
+    print("The version of the meta-configuration data is not supported.")
+    return False
 
 class clYAML(object):
     # class dealing with YAML data
@@ -79,7 +105,7 @@ class clYAML(object):
 class genResource(clYAML) :
     # the class providing the interface to the generator resources
     # It's made mostly to provide additional layer of validation
-    # Currently it does nothing
+    # Currently it does nothing (two months later. not anymore)
     
     def __init__(self, rcFileName = None) :
         # the constructor accepts the name of the resource file
@@ -89,6 +115,16 @@ class genResource(clYAML) :
             rcFileName = os.path.join(script_path, 'gen.rc')
 
         super(genResource, self).__init__(rcFileName)
+        
+        self.version = str(self.Data['version'])
+        self.majorVersion = str(self.Data['support_version']).split('.')[1]
+        
+    def subvalidate(self) :
+        if str(self.Data['version']) == VERSION :
+            return True
+        
+        print("The resource file has wrong version.")
+        return False
         
 ## end of class genResource
 
@@ -340,7 +376,7 @@ class collectionLines(object) :
             x21, x22 = line2['start']['x'], line2['end']['x']
             
             return (max(x11, x12) <= min(x21, x22) or min(x11, x12) >= max(x21, x22)) 
-        # end of isOverlap
+        # end of isDisjoint
         
         def y_separation(line1, line2):
             # mutual penetration
@@ -446,17 +482,35 @@ class InfoException(Exception) :
 
 class ctlInfo(clYAML) :
     # the class dealing with the configuration data
-    
-    listSources = []
-    listFluxPoints = []
+    #listSources = []
+    #listFluxPoints = []
+    #listTransients = []
     
     # comments on the content
-    numWarnings = 0
-    bufWarnings = []
-    numErrors = 0
-    bufErrors = []
+    #numWarnings = 0
+    #bufWarnings = []
+    #numErrors = 0
+    #bufErrors = []
+    
+    def __init__(self, iniFileName = None) :
+        self.colLines = collectionLines()
+        self.listFluxPoints = []
+        self.listSources = []
+        self.listTransients = []    
+        
+        super(ctlInfo, self).__init__("gen.ini" if iniFileName == None else iniFileName)
+        self.topComment = self.getSection('comment')
+    
     
     def subvalidate (self) :
+        
+        if not 'version' in dict(self.Data) :
+            self.setWarning('Version of meta-configuration data is not provided. Errors may be expected.', code=1)
+        else :
+            if not validateVersion(str(self.Data['version'])): # TODO: Exceptions
+                self.setError('The version of meta-configuration data is not supported. Check your configuration file against canonical.', code=1)
+                return False
+            
         if "default" in dict(self.Data["Output"]["ctl_file"]) \
             and self.Data["Output"]["ctl_file"]["default"] :
             self.nameCtlFile = self.iniFileName + ".ctl"
@@ -491,7 +545,7 @@ class ctlInfo(clYAML) :
             self.listSources.append(source["source"])
         # end of addsource
         
-        def addObserver(obs) :
+        def addFluxPoint(obs) :
             def adjust_for_relative(point) :
                 # here the width is also adjusted
                 if "ref" in dict(point) :
@@ -516,8 +570,36 @@ class ctlInfo(clYAML) :
                 self.setWarning("The checking point is outside")
     
             self.listFluxPoints.append(obs["flux"])
-        # end of addobserver
-
+        # end of addFluxPoint
+        
+        def addSnapshots(obs):
+            self.listTransients.append(obs)
+            
+        def addSnapLocal(obs) :
+            def adjust_for_relative(point) :
+                if not "ref" in dict(point) :
+                    return True
+                
+                refelem = self.colLines.findLineID(pos['ref'])
+                if refelem == None :
+                    self.setError("The point refers to uknown element")
+                    return False
+        
+                point['x'] += refelem[point['point']]['x']
+                point['y'] += refelem[point['point']]['y']
+                return True
+            # end adjust_for_relative (local snapshot)
+            
+            if 'field' in dict(obs) :
+                pos = obs['field']['position']
+                if not adjust_for_relative(pos) : return False
+                
+                if not self.colLines.isInside(pos['x'], pos['y']) :
+                    self.setWarning("The field collecting point is outside")
+                    
+                self.listTransients.append(obs)
+        # end of addSnapLocal
+            
         # Here's the main code
         listElem = self.Data["Geometry"]["elements"]
         numLines = len(listElem)
@@ -558,15 +640,26 @@ class ctlInfo(clYAML) :
         listElem = self.Data['Collectors']
         if len(listElem) == 0 :
             self.setWarning("The list of checking points is empty!")
-        for col in listElem :
-            addObserver(col)
+            
+        if 'spectral' in dict(listElem) :
+            # add spectral observers
+            listObs = listElem['spectral']
+            for col in listObs :
+                # TODO: implement full interface for spectral observers
+                if 'flux' in dict(col) :
+                    addFluxPoint(col)
+                    
+        if 'temporal' in dict(listElem) :
+            # temporal observers (snapshots)
+            listObs = listElem['temporal']
+            for col in listObs :
+                if 'snapshot' in dict(col) :
+                    addSnapshots(col)
+                if 'field' in dict(col) :
+                    addSnapLocal(col)
                 
         return True
-        
-    def __init__(self, iniFileName = None) :
-        self.colLines = collectionLines()
-        super(ctlInfo, self).__init__("gen.ini" if iniFileName == None else iniFileName)
-        self.topComment = self.getSection('comment')
+    # end of subvalidate
         
     def getLines(self) :
         return self.colLines.listLines
@@ -617,25 +710,52 @@ class MeepControl (object) :
         if not self.rcData.isValid :
             sys.exit("Fatal error: The resource file is corrupted!")        
         self.FileName = outFileName
-        # accumulator of flux points
-        self.listFluxPoints = []
-        self.snapCodeLine = ""
-        
+        # accumulators of flux points and transients
+        self.countFluxPoints = 0
+        self.lineFluxCode = ""
+        self.countTransients = 0
+        self.lineTransCode = ""
+                
         self.Code = self.rcData.getSection("Code")
         
         # write the header
         resources = self.rcData.getSection("Header")
+        self.Header = resources
         self.add_comment(resources["intro"])
         self.add_comment(resources['gendata']['header'] + datetime.now().strftime("%Y/%m/%d %H:%M"))
         self.add_comment(resources['gendata']["base"] + iniData.iniFileName)
         comm = iniData.commentProvided()
         if comm :
             self.add_comment(comm)
-        
-    def setSnapshot(self, component, time_step, field = 'e') :
+    # end of __init__
+            
+    def setComplexFields(self, flag = 'true') :
+        self.add_string(self.Header["complexity"] % flag)
+                    
+    def addSnapshot(self, props, time_step) :
+        field = props['field']
+        component = props['component']
         fname = field + component
-        self.snapCodeLine = self.Code['snapshot'] % (fname, time_step, field, component)
         
+        varName = 'transient%s' % self.countTransients
+        self.addFunction(name = varName, body = self.Code['snapshot'] % (fname, time_step, field, component))
+        self.lineTransCode += " " + varName
+        self.countTransients += 1
+        
+    def addLocalSnapshot(self, props, time_step) :
+        field = props['field']
+        component = props['component']
+        fname = field + component + 'loc'
+        
+        pos_x = props['position']['x']
+        pos_y = props['position']['y']
+    
+        varName = 'transient%s' % self.countTransients
+        self.addFunction(name = varName, body = self.Code['field_local'] % \
+                         (fname, time_step, pos_x, pos_y, field, component))
+        self.lineTransCode += " " + varName
+        self.countTransients += 1
+                
     def add_string(self, add_str) :
         self.bufStr = add_str
         self.push()
@@ -680,7 +800,6 @@ class MeepControl (object) :
     def addblock(self, medium, xL, xR, yB, yT) :
         # adds the piece of code corresponding to the block made of medium
         # TODO: if medium is not understood, raise an exception
-        
         sizeX = xR - xL
         centX = xL + sizeX/2.0
         sizeY = yT - yB 
@@ -728,34 +847,50 @@ class MeepControl (object) :
     def addresolution(self, res) :
         self.add_string(self.Code["resolution"] % res)
         
-    def addflux(self, counter, props, xL, xR, yB, yT) :
+    def addFunction(self, name, body) :
+        self.form_line(self.Code['function_head'] % name)
+        self.form_line("%s" % body)
+        self.form_line(self.Code['function_tail'])
+        self.push()
+        
+    def addflux(self, props, xL, xR, yB, yT) :
         sizeX = xR - xL
         centX = xL + sizeX/2.0
         sizeY = yT - yB
         centY = yB + sizeY/2.0
-    
-        self.form_line(self.Code["flux_head"] % counter)
-        self.form_line(self.Code["flux_prop"] % (props["center"], props["width"], props["resolution"]))
-        self.form_line(self.Code["flux_position"] % (centX, centY, sizeX, sizeY))
-        self.form_line(self.Code["flux_tail"])
-        self.push()
-        
-        self.listFluxPoints.append(counter)
-        
+
+        bodyFlux = (self.Code["flux_prop"] % (props["center"], props["width"], props["resolution"])) + \
+            (self.Code["flux_position"] % (centX, centY, sizeX, sizeY)) + ')'
+        varName = 'trans%s' % self.countFluxPoints
+        self.addFunction(name = varName, body = bodyFlux)
+
+        self.lineFluxCode += " " + varName
+        self.countFluxPoints += 1
+
     def finalizeFluxes(self):
         str = self.Code["fluxes_head"]
-        # The standard identificator is 'trans'
-        for num in self.listFluxPoints:
-            str += " trans%s" % num
+        str += self.lineFluxCode
         str += self.Code["fluxes_tail"]
         
         self.add_string(str)
     
-    def addtimecontrol(self, property, **kwargs) : 
+    def startRunControl(self, property, **kwargs) : 
+        # forms (run-* line 
         if property == 'decay':
-            self.add_string(self.Code["time_decay"] % (self.snapCodeLine, kwargs['duration'], kwargs['pos_x'], kwargs['pos_y']))
+            self.form_line(self.Code["time_decay"] % (kwargs['duration'], kwargs['pos_x'], kwargs['pos_y']))
         elif property == 'fixed' :
-            self.add_string(self.Code["time_fixed"] % (kwargs['duration'], self.snapCodeLine))
+            self.form_line(self.Code["time_fixed"] % kwargs['duration'])
+            
+    def addRunControl(self, body = None) :
+        if body == None :
+            body = ""
+            for num in range(self.countTransients) :
+                body += " transient%s" % num
+        self.form_line(" " + body)
+            
+    def endRunControl(self) :
+        self.form_line(self.Code['time_tail'])
+        self.push()
 
 # end of class MeepControl and its Exceptions
 
@@ -768,6 +903,12 @@ def main(iniData, rcFileName) :
     This function should work standalone as well as within a script.
     """    
     ctlFile = MeepControl(iniData.getCtlName(), rcFileName)
+    contrData = iniData.getSection("Controls")
+    
+    # 0. Set whether fields should be regarded as complex or not
+    
+    if 'complex' in dict(contrData) and contrData['complex']:
+        ctlFile.setComplexFields()
 
     # 1. Find the limiting points
     s = iniData.getSection("Geometry")["overshot"]
@@ -952,40 +1093,53 @@ def main(iniData, rcFileName) :
     # 4. Add pml and resolution
     ctlFile.addPML()
     
-    contrData = iniData.getSection("Controls")
-    
     ctlFile.addresolution(contrData["resolution"])
     
     # 6. Define flux points
     # The procedure here is different because each flux region is a separate variable
     # They must be defined before the time control is defined
     
-    countFluxes = 0
+    count = 0
     for fluxp in iniData.listFluxPoints :
-        print("Adding flux collector: %s at (%s, %s)" % (countFluxes, fluxp['position']['x'], fluxp['position']['y'])) # fluxp
+        print("Adding flux collector: %s at (%s, %s)" \
+              % (count, fluxp['position']['x'], fluxp['position']['y']))
+        count += 1
         
         x1 = fluxp["position"]["x"]
         x2 = x1
         y1 = fluxp["position"]["y"] - fluxp["position"]["width"]*0.5
         y2 = fluxp["position"]["y"] + fluxp["position"]["width"]*0.5
         
-        ctlFile.addflux(countFluxes, fluxp["property"], x1, x2, y1, y2)        
-        countFluxes += 1
-
-    # 7. Add time control
-
-    if "snapshot" in dict(contrData) :
-        if 'resolution' in dict(contrData['snapshot']) :
-            res = float(contrData['snapshot']['resolution'])
-        else :
-            res = 0.6
-        ctlFile.setSnapshot(contrData['snapshot']['component'], res, contrData['snapshot']['field'])
+        ctlFile.addflux(fluxp["property"], x1, x2, y1, y2)
+        
+    # 6.1. Add snapshots and other transient functions
+    # TODO: reimplement this part to avoid unnecessary repetitions
     
+    def setResolution(snap) :
+        return 0.6 if not 'resolution' in dict(snap) else float(snap['resolution'])
+    # end setResolution
+    
+    count = 0
+    for transient in iniData.listTransients:
+        print("Adding transient function: %s, type %s" % (count, transient))
+        count += 1
+        if "snapshot" in dict(transient) :
+            snaps = transient['snapshot']
+            res = setResolution(snaps)
+            ctlFile.addSnapshot(snaps, res)
+        elif 'field' in dict(transient) :
+            snaps = transient['field']
+            res = setResolution(snaps)
+            ctlFile.addLocalSnapshot(snaps, res)
+
+    # 7. Add Run control
+    # 7.1 add run control
     if "structure_only" in dict(contrData['time']) and contrData['time']['structure_only']:
-        ctlFile.addtimecontrol('fixed', duration = 0.1)
+        ctlFile.startRunControl('fixed', duration = 0.1)
     elif contrData["time"]["type"] == "decay":
         if len(iniData.listFluxPoints) == 0 :
             # if no flux points are defined we take default at the center
+            # TODO: look at other sort of positioned collectors if no flux points are defined
             cont_pos_x = 0
             cont_pos_y = 0
         else:
@@ -994,12 +1148,18 @@ def main(iniData, rcFileName) :
             cont_pos_x = iniData.listFluxPoints[0]["position"]["x"]
             cont_pos_y = iniData.listFluxPoints[0]["position"]["y"]
         
-        ctlFile.addtimecontrol("decay", duration = contrData["time"]["duration"], 
+        ctlFile.startRunControl("decay", duration = contrData["time"]["duration"], 
                                    pos_x = cont_pos_x, pos_y = cont_pos_y)
     elif contrData["time"]["type"] == "fixed":
-        ctlFile.addtimecontrol("fixed", duration = contrData["time"]["duration"])        
+        ctlFile.startRunControl("fixed", duration = contrData["time"]["duration"])
+        
+    # 7.2 add transient functions 
+    # for transient in iniDdata.listTransientsFunctions ...
+    ctlFile.addRunControl()
+        
+    ctlFile.endRunControl()
 
-    # 8. Add flux points
+    # 8. Add output of flux points
     ctlFile.finalizeFluxes()
 
     ctlFile.dump()

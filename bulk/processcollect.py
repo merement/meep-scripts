@@ -12,7 +12,7 @@ parser = argparse.ArgumentParser()
 
 parser.add_argument('--old', action='store_true', help = '')
 parser.add_argument('--text', action='store_true', 
-            help = 'Set for not showing graphs but only saving them')
+                    help = 'Set for not showing graphs but only saving them')
 
 parser.add_argument("jsonFileName", help = 'The name of the input json file')
 args = parser.parse_args()
@@ -20,11 +20,11 @@ args = parser.parse_args()
 import sys # 
 
 try:
-	with open(args.jsonFileName, "rt") as fileJson :
-		collection = json.load(fileJson)
+    with open(args.jsonFileName, "rt") as fileJson :
+        collection = json.load(fileJson)
 except IOError:
-	print "Cannnot open file with collected data"
-	raise
+    print "Cannnot open file with collected data"
+    raise
 
 if len(collection) == 0:
     print "Empty dataset is retrieved"
@@ -42,14 +42,32 @@ flux0 = getarray(item, 'flux0')
 flux10 = getarray(item, 'flux10')
 flux20 = getarray(item, 'flux20')
 
-fig1, ax1 = plt.subplots()
-ax1.scatter(freq, vert, c=flux0, s=25, marker = 's', edgecolors = 'none')
+def plotflat(xar, yar, zar) :
+    fig, ax = plt.subplots()
+    ax.scatter(xar, yar, c=zar, s=36, marker = 's', edgecolors = 'none')
 
-fig2, ax2 = plt.subplots()
-ax2.scatter(freq, vert, c=flux10, s=25, marker = 's', edgecolors = 'none')
+    xmin = xar.min()
+    xmax = xar.max()
+    xspan = xmax - xmin
+    dx = xspan/30.0
+    ax.set_xlim([xmin-dx, xmax+dx])
 
-fig3, ax3 = plt.subplots()
-ax3.scatter(freq, vert, c=flux20, s=25, marker = 's', edgecolors = 'none')
+    ymin = yar.min()
+    ymax = yar.max()
+    yspan = ymax - ymin
+    dy = yspan/20.0
+    ax.set_ylim([ymin-dy, ymax + dy])
+    fig.set_size_inches(6.6, 2.3)
+
+    #aspectratio=1
+    #ratio_default=(ax1.get_xlim()[1]-ax1.get_xlim()[0])/(ax1.get_ylim()[1]-ax1.get_ylim()[0])
+    #ax1.set_aspect(ratio_default*aspectratio)
+
+    return fig, ax
+
+fig1, ax1 = plotflat(freq, vert, flux0)
+fig2, ax2 = plotflat(freq, vert, flux10)
+fig3, ax3 = plotflat(freq, vert, flux20)
 
 fig1.savefig('flux0.png', bbox_inches= 'tight')
 fig2.savefig('flux10.png', bbox_inches= 'tight')

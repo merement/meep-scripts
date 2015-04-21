@@ -6,10 +6,7 @@
 # TODO: add the option for not doing the ratio
 
 import numpy
-import matplotlib.pyplot as plt
-
 import pandas # for reading csv
-
 import sys 
 
 import argparse
@@ -19,6 +16,12 @@ parser.add_argument('--old', action='store_true', help = 'Set for flipping first
 parser.add_argument('--text', action='store_true', help = 'Set for not showing graphs but only saving them')
 parser.add_argument('datfile')
 args = parser.parse_args()
+
+if args.text :
+	from matplotlib import use
+	use('Agg')
+
+import matplotlib.pyplot as plt
 
 def is_number(s):
 # taken from http://stackoverflow.com/questions/354038/how-do-i-check-if-a-string-is-a-number-in-python

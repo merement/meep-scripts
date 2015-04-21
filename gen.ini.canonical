@@ -2,18 +2,29 @@
 #
 # Status: UNSTABLE
 # Ultimately this file should contain the high level
-# desciption of the structure in the vector form
+# desciption of the structure in the vector form and general controls
 #
-# ver 2-10-2015
+# ver 2-10-2015 (0.1)
 # YAML format is adopted 
 # The elements in the current version must be in strict order:
 # from left to right and from bottom to top
 #
-# ver 2-27-2015
+# ver 2-27-2015 (0.2)
 # Many TODO's are implemented. Additional fields are added
 #
-# ver 3-20-2015
+# ver 3-20-2015 (0.3)
 # Semantics of Output.ctl_file is changed
+#
+# ver 4-18-2015 (0.4)
+# 1. Version control is added
+# 2. Control of the complexity of the field
+# 3. Put snapshots to collectors 
+# 4. Separated spectral and temporal (transient) characteristics
+# 5. Local field snapshots
+# TODO: unify local/global through specification of coordinates
+# TODO: arbitrary function
+
+version: 0.4
 
 comment: Any single-line comment passed to the file 
 # The same line can be added to any element, see, for instance, first 
@@ -169,6 +180,8 @@ Sources:
             component: Hz # (Ex, Hx, ...)
 
 Controls:
+    complex: True # (True | False) # whether fields are complex or real
+                    # default = False
     resolution: 10
     time:
         structure_only: False # (True, False)
@@ -180,32 +193,44 @@ Controls:
             x: -1
             y: 0
         duration: 150 # in periods of the source
-    snapshot:
-        field: e # (e, h)
-        component: z # (x, y, z)
-        resolution: 0.6 # time step in Meep units (default: 0.6)
-        # the number of snapshots = duration/resolution
 
 Collectors:
-    - flux:
-        position:
-            ref: line5
-            point: end
-            x: -1
-            y: 0
-            width: 1.5
-        property: &fluxprop
-            center: 0.0005 # frequency
-            width: 0.001 
-            resolution: 100 # number of points in the frequency domain
-    - flux:
-        position:
-            ref: line6
-            point: end
-            x: -1
-            y: 0
-            width: 1.5
-        property: *fluxprop
+    spectral: # TODO: full interface supporting spectral functions
+        - flux:
+            position:
+                ref: line5
+                point: end
+                x: -1
+                y: 0
+                width: 1.5
+            property: &fluxprop
+                center: 0.0005 # frequency
+                width: 0.001 
+                resolution: 100 # number of points in the frequency domain
+        - flux:
+            position:
+                ref: line6
+                point: end
+                x: -1
+                y: 0
+                width: 1.5
+            property: *fluxprop
+
+    temporal: # former snapshot TODO: full interface
+        - snapshot: # full field snapshot
+            field: e # (e, h)
+            component: z # (x, y, z)
+            resolution: 0.6 # time step in Meep units (default: 0.6)
+            # the number of snapshots = duration/resolution
+        - field:
+            field: e # (e|h)
+            component: z # (x|y|z)
+            resolution: 0.6
+            position:
+                ref: line6
+                point: end
+                x: -1
+                y: 0
 
 Output:
     ctl_file:
