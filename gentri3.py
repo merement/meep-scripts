@@ -37,6 +37,7 @@
 # TODO: arbitrary function
 # TODO: implement spectral quantities
 # TODO: the design shows a lot of flaws. Implement patches in a consistent manner
+# TODO: correct time decay (component)
 
 import numpy as np
 import copy # for copying nested dictionaries
@@ -567,10 +568,12 @@ class ctlInfo(clYAML) :
                 self.setWarning("The checking point is outside")
     
             self.listFluxPoints.append(obs["flux"])
+            return True
         # end of addFluxPoint
         
         def addSnapshots(obs):
             self.listTransients.append(obs)
+            return True
             
         def addSnapLocal(obs) :
             def adjust_for_relative(point) :
@@ -595,6 +598,7 @@ class ctlInfo(clYAML) :
                     self.setWarning("The field collecting point is outside")
                     
                 self.listTransients.append(obs)
+                return True
         # end of addSnapLocal
             
         # Here's the main code
@@ -650,10 +654,11 @@ class ctlInfo(clYAML) :
             # temporal observers (snapshots)
             listObs = listElem['temporal']
             for col in listObs :
+                print("Processing temporal observable: %s" % col.keys())
                 if 'snapshot' in dict(col) :
-                    addSnapshots(col)
+                    if not addSnapshots(col) : return False
                 if 'field' in dict(col) :
-                    addSnapLocal(col)
+                    if not addSnapLocal(col) : return False
                 
         return True
     # end of subvalidate
@@ -742,7 +747,7 @@ class MeepControl (object) :
     def addLocalSnapshot(self, props, time_step) :
         field = props['field']
         component = props['component']
-        fname = field + component + 'loc'
+        fname = field + component + '-loc-%s' % self.countTransients
         
         pos_x = props['position']['x']
         pos_y = props['position']['y']

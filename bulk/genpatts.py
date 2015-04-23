@@ -10,13 +10,14 @@
 # crawler.sh
 #
 # The list of variables we need to define is
-#	terminator_length
-#	vertical_spacing
-#	middle_length
-#	center_frequency # frequencies are for both sources and observers
-#	width_frequency
-#	out_name  # name of the output control file (prefix)
-#	count # to distinguish different versions
+#   terminator_length
+#   vertical_spacing
+#   middle_length
+#       middle_index
+#   center_frequency # frequencies are for both sources and observers
+#   width_frequency
+#   out_name  # name of the output control file (prefix)
+#   count # to distinguish different versions
 #
 # The command producing particular meta-configuration file is 
 #

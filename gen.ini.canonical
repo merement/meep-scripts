@@ -174,9 +174,9 @@ Sources:
 
         property:
             # type: pulse # (pulse, continuous)
-            type: continuous
+            type: pulse
             center: 0.1 # frequency
-            width: 0.01 # for pulse and for continuous if non-zero implies tanh
+            width: 0.1 # for pulse and for continuous if non-zero implies tanh
             component: Hz # (Ex, Hx, ...)
 
 Controls:
@@ -185,7 +185,7 @@ Controls:
     resolution: 10
     time:
         structure_only: False # (True, False)
-        # type: decay # (fixed, decay)
+        # type: decay # (fixed, decay) #
         type: fixed
         position: # for decay, where it's monitored
             ref: 1
@@ -219,17 +219,35 @@ Collectors:
     temporal: # former snapshot TODO: full interface
         - snapshot: # full field snapshot
             field: e # (e, h)
-            component: z # (x, y, z)
+            component: y # (x, y, z)
             resolution: 0.6 # time step in Meep units (default: 0.6)
             # the number of snapshots = duration/resolution
         - field:
             field: e # (e|h)
-            component: z # (x|y|z)
+            component: y # (x|y|z)
+            resolution: 0.6
+            position:
+                ref: line5
+                point: end
+                x: -1
+                y: 0
+        - field:
+            field: e # (e|h)
+            component: y # (x|y|z)
             resolution: 0.6
             position:
                 ref: line6
                 point: end
                 x: -1
+                y: 0
+        - field:
+            field: e # (e|h)
+            component: y # (x|y|z)
+            resolution: 0.6
+            position:
+                ref: 2
+                point: start
+                x: 1
                 y: 0
 
 Output:

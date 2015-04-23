@@ -28,8 +28,9 @@ fi
 
 meep $conf.ctl | tee $conf.log
 # Here we get the number of time slices
-out=`h5ls ${conf}-ey.h5 | sed -e "s/\// /" | awk '{print $5;}'`
-let out=$out-1
+outn=`h5ls ${conf}-ey.h5 | sed -e "s/\// /" | awk '{print $5;}'`
+((out=outn-100))
+echo "${out} time points are detected"
 h5topng -t 0:$out -R -Zc dkbluered -a yarg -A $conf-eps-000000.00.h5 $conf-ey.h5
 ffmpeg -i $conf-ey.t%03d.png -vb 20M $conf.mpeg
 h5topng $conf-eps-000000.00.h5

@@ -1,5 +1,5 @@
 ; Control file for Meep calculations of SSPP waveguides
-; Generated: 2015/04/21 01:29
+; Generated: 2015/04/21 07:32
 ; Based on gen.ini.canonical
 ; Any single-line comment passed to the file
 (set-param! force-complex-fields? true)
@@ -140,13 +140,15 @@
 (make block(center 14.8 0.75) (size 0.0 1.5 infinity)(material (make medium (epsilon 1.5) (D-conductivity 50) )))
 ))
 (set! sources (list
-(make source(component Hz)(center -13.8 2.0) (size 0.0 1.0)(src (make continuous-src (frequency 0.1) (fwidth 0.01) )))
+(make source(component Hz)(center -13.8 2.0) (size 0.0 1.0)(src (make gaussian-src (frequency 0.1) (fwidth 0.1) )))
 ))
 (set! pml-layers (list (make pml (thickness 1.0)) ))
 (set! resolution 10)
 (define trans0 (add-flux 0.0005 0.001 100(make flux-region (center 13.8 -2.0) (size 0.0 1.5) )))
 (define trans1 (add-flux 0.0005 0.001 100(make flux-region (center 13.8 2.0) (size 0.0 1.5) )))
-(define transient0 (to-appended "ez" (at-every 0.6 output-efield-z)))
-(define transient1 (to-appended "ezloc" (at-every 0.6 (in-volume (volume (center 13.8 2.0) (size 0) ) output-efield-z) )))
-(run-until 150 (at-beginning output-epsilon)  transient0 transient1)
+(define transient0 (to-appended "ey" (at-every 0.6 output-efield-y)))
+(define transient1 (to-appended "ey-loc-1" (at-every 0.6 (in-volume (volume (center 13.8 -2.0) (size 0) ) output-efield-y) )))
+(define transient2 (to-appended "ey-loc-2" (at-every 0.6 (in-volume (volume (center 13.8 2.0) (size 0) ) output-efield-y) )))
+(define transient3 (to-appended "ey-loc-3" (at-every 0.6 (in-volume (volume (center -13.8 -2.0) (size 0) ) output-efield-y) )))
+(run-until 150 (at-beginning output-epsilon)  transient0 transient1 transient2 transient3)
 (display-fluxes trans0 trans1)
