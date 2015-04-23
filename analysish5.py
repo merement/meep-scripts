@@ -1,4 +1,4 @@
-#!/usr/bin/python
+#!/usr/bin/env python
 # Some basic analysis of 1d data presented in h5 files
 # Hopefully it will result in something meaningful
 #
