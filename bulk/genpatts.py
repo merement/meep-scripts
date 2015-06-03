@@ -13,7 +13,7 @@
 #   terminator_length
 #   vertical_spacing
 #   middle_length
-#       middle_index
+#   middle_index
 #   center_frequency # frequencies are for both sources and observers
 #   width_frequency
 #   out_name  # name of the output control file (prefix)
@@ -29,6 +29,8 @@ parser = argparse.ArgumentParser()
 parser.add_argument('--vert', default = '5', help = 'Range of vertical spacings')
 parser.add_argument('--term', default = '2', help = 'Range of terminator lengts')
 parser.add_argument('--middle', default = '1', help = 'Range of lengts of middle parts')
+parser.add_argument('--mideps', default = '1', 
+    help = 'Range for epsilon in the middle part')
 parser.add_argument('--freq', default = '0.025:0.025:0.4', help = 'Range of frequencies')
 
 # we need to be more precise with the width when a continuous source is provided
@@ -36,9 +38,7 @@ group = parser.add_mutually_exclusive_group()
 group.add_argument('--continuous', action='store_true')
 group.add_argument('--pulse', action='store_false')
 
-# nargs = '+' gives the option to collect the name of the output file
-# but we probably won't use this
-parser.add_argument('patt_file', nargs = '+', help = 'Name of the pattern file')
+parser.add_argument('patt_file', help = 'Name of the pattern file')
 
 args = parser.parse_args()
 
@@ -70,6 +70,7 @@ vert = process(args.vert)
 term = process(args.term)
 middle = process(args.middle)
 cent = process(args.freq)
+mideps = process(args.mideps)
 
 print "Generate files for the following parameters"
 print "Vertical spacing: ", vert

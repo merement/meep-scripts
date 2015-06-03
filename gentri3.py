@@ -206,7 +206,7 @@ class collectionLines(object) :
 
     def addLine(self, add_line) :
         def adjust_for_relative(point, curline = None) :
-            # The awkward second argument is to support the self-reference for the end point
+            # The awkward second argument is to support the self-reference for end points
             if "ref" in dict(point) :
                 refelem = None
                 if curline != None and "id" in dict(curline) and curline["id"] == point['ref'] :

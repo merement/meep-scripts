@@ -72,9 +72,11 @@ for i in range(num_files) :
 	listobs.append('Port: %s' % i)
 
 ax1.legend(listobs, loc = 'upper left')
-f1.suptitle('Amplitude')
+ax1.set_xlabel('Time counts')
+#f1.suptitle('Amplitude')
 ax2.legend(listobs, loc = 'upper left')
-f2.suptitle('Real part')
+ax2.set_xlabel('Time counts')
+#f2.suptitle('Real part')
 f1.savefig('abs.png', bbox_inches= 'tight')
 f2.savefig('time_real.png', bbox_inches= 'tight')
 f21.savefig('time_imag.png', bbox_inches= 'tight')
