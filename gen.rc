@@ -1,7 +1,7 @@
 # Resource file for the generator
 #
 # 
-version: 0.4 # current version of meta-configuration files
+version: 0.4.1 # current version of meta-configuration files
 support_version: 0.4 # back support - major version
 
 Header:
@@ -12,12 +12,12 @@ Header:
     complexity: "(set-param! force-complex-fields? %s)"
 
 Code:
-    geometry: (set! geometry-lattice (make lattice (size %s %s no-size) ) ) # totlen totwidth no-size
+    geometry: (set! geometry-lattice (make lattice (size %s %s %s) ) ) # totlen totwidth zheight (default = no-size)
     geometry_head: (set! geometry (list
     geometry_tail: ))
 
     block_head: (make block
-    block_position: (center %s %s) (size %s %s infinity) 
+    block_position: (center %s %s) (size %s %s %s) # (x_pos, y_pos) (x_size, y_size, z_size (default = infinity))
     block_metal: (material (make medium (epsilon %s) (D-conductivity %s) ))
     # block_metal: (material (make dielectric (epsilon 2) ))
     block_dielectric: (material (make dielectric (epsilon %s)  ))
@@ -29,7 +29,7 @@ Code:
         pulse: (src (make gaussian-src (frequency %s) (fwidth %s) )) # central, width
         continuous: (src (make continuous-src (frequency %s) (fwidth %s) ))
     source_component: (component %s) # (Ex, ..., Hx ...)
-    source_position: (center %s %s) (size %s %s)
+    source_position: (center %s %s) (size %s %s %s) # see block_position above
     source_tail: )
     sources_tail: ))
 
@@ -47,7 +47,7 @@ Code:
 
     flux_head: "(define trans%s "  # hence trans is the standard prefix (space is added for prettyness)
     flux_prop: (add-flux %s %s %s # frequencies: center width number_of_points
-    flux_position: (make flux-region (center %s %s) (size %s %s) )
+    flux_position: (make flux-region (center %s %s) (size %s %s %s) ) # (,) (, , z_size (default = 0))
     flux_tail: ))
 
     fluxes_head: (display-fluxes

@@ -53,7 +53,7 @@ Tolerance = 1e-6
 
 # simple check version of metaconfigurations
 # these variables can be overriden
-VERSION = '0.4'
+VERSION = '0.4.1'
 MAJOR_VERSION = '0.4'
 
 def validateVersion(version) :
@@ -61,10 +61,27 @@ def validateVersion(version) :
     if version == VERSION :
         return True
     print("The version of the meta-configuration data is not current. Possible compatibility issues may be expected.")
-    if version.split('.')[1] == MAJOR_VERSION :
+    # We extract the major part of the version
+    sub_pos = version.find('.',version.find('.')+1)
+    maj_ver = version[:(len(version) if sub_pos < 0 else sub_pos)]
+    
+    print(version, maj_ver, MAJOR_VERSION)
+
+    if maj_ver == MAJOR_VERSION :
         return True
     print("The version of the meta-configuration data is not supported.")
     return False
+
+def is_number(s):
+# taken from http://stackoverflow.com/questions/354038/how-do-i-check-if-a-string-is-a-number-in-python
+    try:
+        float(s)
+        return True
+    except ValueError:
+        return False
+    
+def sort_pair(a, b) :
+    return (a,b) if a < b else (b,a)
 
 class clYAML(object):
     # class dealing with YAML data
@@ -138,6 +155,8 @@ class collectionLines(object) :
         self.MaxX = 0
         self.MinY = 0
         self.MaxY = 0
+        self.MinZ = 0
+        self.MaxZ = 0        
         
         self.numElements = 0
         self.numErrors = 0
@@ -170,7 +189,7 @@ class collectionLines(object) :
         return self.MinX < x < self.MaxX and self.MinY < y < self.MaxY
     
     def getLimits(self) :
-        return self.MinX, self.MaxX, self.MinY, self.MaxY
+        return self.MinX, self.MaxX, self.MinY, self.MaxY, self.MinZ, self.MaxZ
         
     def setLimits(self) :
         if len(self.listLines) > 0 :
@@ -185,7 +204,7 @@ class collectionLines(object) :
                 continue
             start = line['start']
             end = line['end']
-            (curMinX, curMaxX) = (start['x'], end['x']) if start['x'] < end['x'] else (end['x'], start['x'])
+            (curMinX, curMaxX) = sort_pair(start['x'], end['x'])
             
             curMinY = min(start['y'], end['y']) - line['weak_space_down']
             curMaxY = max(start['y'], end['y']) + line['weak_space_up']
@@ -300,6 +319,9 @@ class collectionLines(object) :
         add_line['start']['skip'] = add_line['start']['skip'] % 1 # we want only fraction
         if abs(add_line['start']['skip'] - 1) < Tolerance or abs(add_line['start']['skip']) < Tolerance :
             add_line['start']['skip'] = 0.0
+            
+        # Here we deal with the z part
+        add_line['property']['elevation'] = self.MaxZ
         self.listLines.append(add_line)
     # end addline
     
@@ -337,6 +359,8 @@ class collectionLines(object) :
         add_con['type'] = 'connector'
         add_con['space_left'] = add_con['property']['width']/2.0
         add_con['space_right'] = add_con['property']['width']/2.0
+        
+        add_con['property']['elevation'] = self.MaxZ
         self.listLines.append(add_con)
     # end of addconnector
         
@@ -491,6 +515,8 @@ class ctlInfo(clYAML) :
     bufErrors = []
     
     def __init__(self, iniFileName = None) :
+        self.zSize = -1.0 # by default structures are 2d
+        
         self.colLines = collectionLines()
         self.listFluxPoints = []
         self.listSources = []
@@ -539,7 +565,8 @@ class ctlInfo(clYAML) :
             if not adjust_for_relative(pos) : return False
             if not self.colLines.isInside(pos['x'], pos['y']) :
                 self.setWarning("The source is outside")
-    
+                
+            source['source']['position']['elevation'] = self.zSize/2.0 if self.zSize > 0 else 0
             self.listSources.append(source["source"])
         # end of addsource
         
@@ -567,6 +594,7 @@ class ctlInfo(clYAML) :
             if not self.colLines.isInside(pos["x"], pos["y"]) :
                 self.setWarning("The checking point is outside")
     
+            obs['flux']['position']['elevation'] = self.zSize
             self.listFluxPoints.append(obs["flux"])
             return True
         # end of addFluxPoint
@@ -602,6 +630,15 @@ class ctlInfo(clYAML) :
         # end of addSnapLocal
             
         # Here's the main code
+        # Set for the vertical extension
+        if 'Z_direction' in dict(self.Data['Geometry']) \
+           and is_number(self.Data['Geometry']['Z_direction']['size']) :
+            self.zSize = self.Data['Geometry']['Z_direction']['size']
+            # We will place at z = 0 with size \pm zSize if zSize > 0
+            if self.zSize > 0 :
+                self.colLines.MaxZ = self.zSize/2.0
+                self.colLines.MinZ = -self.zSize/2.0
+        
         listElem = self.Data["Geometry"]["elements"]
         numLines = len(listElem)
         
@@ -622,8 +659,9 @@ class ctlInfo(clYAML) :
             # IMPORTANT TODO: this should be done _after_ all elements are added since some elements
             # below can enter with absolute coordinates!
             self.colLines.setCenter()
-            print("The elements are confined within (X: %s, %s) (Y: %s, %s)" 
-                  % (self.colLines.MinX, self.colLines.MaxX, self.colLines.MinY, self.colLines.MaxY))
+            print("The elements are confined within (X: %s, %s) (Y: %s, %s) (Z: %s, %s)" 
+                  % (self.colLines.MinX, self.colLines.MaxX, self.colLines.MinY, self.colLines.MaxY, 
+                     self.colLines.MinZ, self.colLines.MaxZ))
             
             if not self.colLines.settleConflicts() :
                 self.setError("Conflicts couldn't be resolved")
@@ -784,8 +822,10 @@ class MeepControl (object) :
             print("Couldn't open ctl file")
             raise
 
-    def defineGeneralArea(self, size_x, size_y) :
-        self.add_string(self.Code["geometry"] %(size_x, size_y))
+    def defineGeneralArea(self, size_x, size_y, size_z) :
+        if size_z == None :
+            size_z = 'no-size'
+        self.add_string(self.Code["geometry"] %(size_x, size_y, size_z))
     
     def startGeometry(self) :
         self.add_string(self.Code["geometry_head"])
@@ -799,17 +839,21 @@ class MeepControl (object) :
     def finalizeSources(self) :
         self.add_string(self.Code["sources_tail"])
 
-    def addblock(self, medium, xL, xR, yB, yT) :
+    def addblock(self, medium, xL, xR, yB, yT, zB, zT) :
         # adds the piece of code corresponding to the block made of medium
         # TODO: if medium is not understood, raise an exception
         sizeX = xR - xL
         centX = xL + sizeX/2.0
         sizeY = yT - yB 
         centY = yB + sizeY/2.0
+        sizeZ = abs(zT - zB)
+        
+        if sizeZ < Tolerance: 
+            sizeZ = 'infinity'
     
         self.form_line(self.Code["block_head"])
     
-        str = self.Code["block_position"] % (centX, centY, sizeX, sizeY)    
+        str = self.Code["block_position"] % (centX, centY, sizeX, sizeY, sizeZ)    
         self.form_line(str)
     
         if medium["medium"] == "metal" :
@@ -822,17 +866,20 @@ class MeepControl (object) :
         self.form_line(self.Code["block_tail"])
         self.push()
 
-    def addsource(self, props, xL, xR, yB, yT) :
+    def addsource(self, props, xL, xR, yB, yT, zB, zT) :
         # adds the source 
         sizeX = xR - xL
         centX = xL + sizeX/2.0
         sizeY = yT - yB 
         centY = yB + sizeY/2.0
+        sizeZ = abs(zT - zB)
+        if sizeZ < Tolerance :
+            sizeZ = 'infinity'
     
         self.form_line(self.Code["source_head"])
     
         self.form_line(self.Code['source_component'] % props['component'])
-        self.form_line(self.Code["source_position"] % (centX, centY, sizeX, sizeY)    )
+        self.form_line(self.Code["source_position"] % (centX, centY, sizeX, sizeY, sizeZ)    )
     
         if props["type"] == "pulse" :
             str = self.Code["source_types"]["pulse"] % (props["center"], props["width"])
@@ -855,14 +902,17 @@ class MeepControl (object) :
         self.form_line(self.Code['function_tail'])
         self.push()
         
-    def addflux(self, props, xL, xR, yB, yT) :
+    def addflux(self, props, xL, xR, yB, yT, zB, zT) :
         sizeX = xR - xL
         centX = xL + sizeX/2.0
         sizeY = yT - yB
         centY = yB + sizeY/2.0
+        sizeZ = abs(zB - zT)
+        if sizeZ < Tolerance :
+            sizeZ = ''
 
         bodyFlux = (self.Code["flux_prop"] % (props["center"], props["width"], props["resolution"])) + \
-            (self.Code["flux_position"] % (centX, centY, sizeX, sizeY)) + ')'
+            (self.Code["flux_position"] % (centX, centY, sizeX, sizeY, sizeZ)) + ')'
         varName = 'trans%s' % self.countFluxPoints
         self.addFunction(name = varName, body = bodyFlux)
 
@@ -914,17 +964,21 @@ def main(iniData, rcFileName) :
 
     # 1. Find the limiting points
     s = iniData.getSection("Geometry")["overshot"]
+    
     if iniData.getNumElements() == 0 :
         print("Empty structure is generated")
         
-        ctlFile.defineGeneralArea(2*s, 2*s)
+        ctlFile.defineGeneralArea(2*s, 2*s, None if iniData.zSize <= 0 else iniData.zSize + 2*s)
     else :
         # [2015-2-11] We take the limiting coordinates strictly
         # We assume that incoming/outgoing channels enter MinX, MaxX planes only
-        MinX, MaxX, MinY, MaxY = iniData.colLines.getLimits()
+        MinX, MaxX, MinY, MaxY, MinZ, MaxZ = iniData.colLines.getLimits()
         width = MaxX - MinX
         height = MaxY - MinY + 2*s
-        ctlFile.defineGeneralArea(width, height)
+        zSize = MaxZ - MinZ
+        if abs(zSize) < Tolerance :
+            zSize = 0
+        ctlFile.defineGeneralArea(width, height, None if iniData.zSize <= 0 else iniData.zSize + 2*s)
             
     # 2. We create a list of blocks corresponding to each line
     
@@ -936,33 +990,36 @@ def main(iniData, rcFileName) :
         # the up metal part
         yBottom = y + 0.5*props['width']
         yTop = y + line['weak_space_up']
-        ctlFile.addblock(props['materials']["up"], x1, x2, yBottom, yTop)
+        zBottom, zTop = -props['elevation'], props['elevation']
+        ctlFile.addblock(props['materials']["up"], x1, x2, yBottom, yTop, zBottom, zTop)
         # the middle part
         yTop = yBottom
         yBottom = yTop - props["width"]
-        ctlFile.addblock(props["materials"]["in"], x1, x2, yBottom, yTop)        
+        ctlFile.addblock(props["materials"]["in"], x1, x2, yBottom, yTop, zBottom, zTop)
         # lower metallic part
         yTop = yBottom
         yBottom = y - line['weak_space_down']
-        ctlFile.addblock(line_props["materials"]["down"], x1, x2, yBottom, yTop)        
+        ctlFile.addblock(line_props["materials"]["down"], x1, x2, yBottom, yTop, zBottom, zTop)
     # end of add_flat
     
     def add_groove(line, x1, x2) :
         # adds the part corresponding to a grove 
         props = line['property']
+        zBottom, zTop = -props['elevation'], props['elevation']
+        
         y = line['start']['y']
         # the up metal part
         yBottom = y + 0.5*props['width']  + props['grooves']['depth']
         yTop = y + line['weak_space_up']
-        ctlFile.addblock(props['materials']["up"], x1, x2, yBottom, yTop)
+        ctlFile.addblock(props['materials']["up"], x1, x2, yBottom, yTop, zBottom, zTop)
         # the middle part
         yTop = yBottom
         yBottom = yTop - props["width"] - 2.0*props['grooves']['depth']
-        ctlFile.addblock(props["materials"]["in"], x1, x2, yBottom, yTop)        
+        ctlFile.addblock(props["materials"]["in"], x1, x2, yBottom, yTop, zBottom, zTop)        
         # lower metallic part
         yTop = yBottom
         yBottom = y - line['weak_space_down']
-        ctlFile.addblock(line_props["materials"]["down"], x1, x2, yBottom, yTop)        
+        ctlFile.addblock(line_props["materials"]["down"], x1, x2, yBottom, yTop, zBottom, zTop)        
     # end of add_groove
          
     ctlFile.startGeometry()
@@ -981,6 +1038,7 @@ def main(iniData, rcFileName) :
         length = np.sqrt((x2 - x1)**2 + (y2 - y1)**2)
         # TODO: direction
         line_props = line['property']
+        zBottom, zTop = -line_props['elevation'], line_props['elevation']
         
         if line['type'] == 'connector' :
             # this is three block system
@@ -991,17 +1049,17 @@ def main(iniData, rcFileName) :
             
             reference = line['start']['attached_to']['property']
             yTop = y2 + reference['padding'] + reference['grooves']['depth']
-            ctlFile.addblock(reference['materials']["up"], xLeft, xRight, yBottom, yTop)
+            ctlFile.addblock(reference['materials']["up"], xLeft, xRight, yBottom, yTop, zBottom, zTop)
             
             # middle dielectric
             yTop = y2
             yBottom = y1
-            ctlFile.addblock(line_props['materials']["in"], xLeft, xRight, yBottom, yTop)
+            ctlFile.addblock(line_props['materials']["in"], xLeft, xRight, yBottom, yTop, zBottom, zTop)
             
             # bottom 
             yTop = y1
             yBottom = y1 - reference['padding'] - reference['grooves']['depth']
-            ctlFile.addblock(reference['materials']["up"], xLeft, xRight, yBottom, yTop)
+            ctlFile.addblock(reference['materials']["up"], xLeft, xRight, yBottom, yTop, zBottom, zTop)
             
             # TODO: patches
             # if is not attached on side : side.cover(whole)
@@ -1082,13 +1140,16 @@ def main(iniData, rcFileName) :
         y1 = source["position"]["y"] - source["position"]["width"]*0.5
         y2 = source["position"]["y"] + source["position"]["width"]*0.5
         
-        print("Adding source: (%s, %s)" % (x1, y1))
+        z1 = -source['position']['elevation']
+        z2 = source['position']['elevation']
+        
+        print("Adding source: (%s, %s, %s)" % (x1, y1, z1))
         
         comm = iniData.commentProvided(source)
         if comm :
             ctlFile.add_comment(comm)
             
-        ctlFile.addsource(source["property"], x1, x2, y1, y2)
+        ctlFile.addsource(source["property"], x1, x2, y1, y2, z1, z2)
     
     ctlFile.finalizeSources()
     
@@ -1111,8 +1172,10 @@ def main(iniData, rcFileName) :
         x2 = x1
         y1 = fluxp["position"]["y"] - fluxp["position"]["width"]*0.5
         y2 = fluxp["position"]["y"] + fluxp["position"]["width"]*0.5
+        z1 = -fluxp['position']['elevation']
+        z2 = fluxp['position']['elevation']
         
-        ctlFile.addflux(fluxp["property"], x1, x2, y1, y2)
+        ctlFile.addflux(fluxp["property"], x1, x2, y1, y2, z1, z2)
         
     # 6.1. Add snapshots and other transient functions
     # TODO: reimplement this part to avoid unnecessary repetitions
